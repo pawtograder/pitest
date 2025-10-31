@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -58,13 +59,24 @@ public class JUnitCustomRunnerTestUnitFinder implements TestUnitFinder {
   private final TestGroupConfig config;
   private final Collection<String> excludedRunners;
   private final Collection<String> includedTestMethods;
+  private final Predicate<Class<?>> allow;
 
-  JUnitCustomRunnerTestUnitFinder(TestGroupConfig config, final Collection<String> excludedRunners,
-                                  final Collection<String> includedTestMethods) {
+
+  public JUnitCustomRunnerTestUnitFinder(TestGroupConfig config,
+                                         Collection<String> excludedRunners,
+                                         Collection<String> includedTestMethods) {
+    this(config, excludedRunners, includedTestMethods, r -> true);
+  }
+  
+  public JUnitCustomRunnerTestUnitFinder(TestGroupConfig config,
+                                         Collection<String> excludedRunners,
+                                         Collection<String> includedTestMethods,
+                                         Predicate<Class<?>> filter) {
     Objects.requireNonNull(config);
     this.config = config;
     this.excludedRunners = excludedRunners;
     this.includedTestMethods = includedTestMethods;
+    this.allow = filter;
   }
 
   @Override
@@ -72,7 +84,7 @@ public class JUnitCustomRunnerTestUnitFinder implements TestUnitFinder {
 
     final Runner runner = AdaptedJUnitTestUnit.createRunner(clazz);
 
-    if (isExcluded(runner) || isNotARunnableTest(runner, clazz.getName()) || !isIncluded(clazz)) {
+    if (!allow.test(runner.getClass()) || isExcluded(runner) || isNotARunnableTest(runner, clazz.getName()) || !isIncluded(clazz)) {
       if (Log.verbosity().showMinionOutput() && runner instanceof ErrorReportingRunner) {
         showJUnitErrors(clazz, runner);
       }
@@ -148,8 +160,7 @@ public class JUnitCustomRunnerTestUnitFinder implements TestUnitFinder {
     };
   }
 
-  private boolean isNotARunnableTest(final Runner runner,
-      final String className) {
+  private boolean isNotARunnableTest(Runner runner, String className) {
     try {
       return (runner == null)
           || runner.getClass().isAssignableFrom(ErrorReportingRunner.class)
