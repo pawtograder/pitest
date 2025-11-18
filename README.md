@@ -8,6 +8,18 @@ Read all about it at https://pitest.org
 
 ## Releases
 
+## 1.22.0
+
+* #1437 Test filter extension point
+
+## 1.21.1
+
+* #1436 Allow filtering JUnit4 by runner
+
+## 1.21.0
+
+* #1434 deprecate unsafe instruction index access
+
 ## 1.20.7
 
 * #1432 Bump commons-text to 1.14.0 
