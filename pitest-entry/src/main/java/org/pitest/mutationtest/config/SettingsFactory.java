@@ -21,8 +21,12 @@ import org.pitest.mutationtest.MutationResultListenerFactory;
 import org.pitest.mutationtest.build.CompoundInterceptorFactory;
 import org.pitest.mutationtest.build.DefaultMutationGrouperFactory;
 import org.pitest.mutationtest.build.DefaultTestPrioritiserFactory;
+import org.pitest.mutationtest.build.FilteringPrioritiser;
 import org.pitest.mutationtest.build.MutationGrouperFactory;
 import org.pitest.mutationtest.build.MutationInterceptorFactory;
+import org.pitest.mutationtest.build.TestFilter;
+import org.pitest.mutationtest.build.TestFilterFactory;
+import org.pitest.mutationtest.build.TestFilterParams;
 import org.pitest.mutationtest.build.TestPrioritiserFactory;
 import org.pitest.mutationtest.incremental.DefaultHistoryFactory;
 import org.pitest.mutationtest.verify.BuildVerifierFactory;
@@ -87,6 +91,19 @@ public class SettingsFactory {
             .collect(Collectors.toList());
     return new CompoundTestStatListener(listeners);
   }
+
+  public TestFilter createTestFilter() {
+    FeatureParser parser = new FeatureParser();
+    List<TestFilterFactory> available = plugins.findTestFilters();
+    FeatureSelector<TestFilterFactory> features = new FeatureSelector<>(parser.parseFeatures(this.options.getFeatures()), available);
+    List<TestFilterFactory> enabled = features.getActiveFeatures();
+
+    List<TestFilter> filters = enabled.stream()
+            .map(f -> f.makeFilter(new TestFilterParams(features.getSettingForFeature(f.provides().name()))))
+            .collect(Collectors.toList());
+    return TestFilter.combine(filters);
+  }
+
 
   public MutationEngineFactory createEngine() {
     for (final MutationEngineFactory each : this.plugins.findMutationEngines()) {
@@ -193,7 +210,8 @@ public class SettingsFactory {
   public TestPrioritiserFactory getTestPrioritiser() {
     final Collection<? extends TestPrioritiserFactory> testPickers = this.plugins
         .findTestPrioritisers();
-    return firstOrDefault(testPickers, new DefaultTestPrioritiserFactory());
+    TestFilter filter = createTestFilter();
+    return new FilteringPrioritiser(firstOrDefault(testPickers, new DefaultTestPrioritiserFactory()), filter);
   }
 
   public CoverageOptions createCoverageOptions() {
