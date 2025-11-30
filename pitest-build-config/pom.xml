@@ -4,7 +4,7 @@
   <name>Build Config</name>
   <parent>
     <artifactId>pitest-parent</artifactId>
-    <groupId>org.pitest</groupId>
+    <groupId>com.pawtograder.org.pitest</groupId>
     <version>${revision}</version>
   </parent>
 

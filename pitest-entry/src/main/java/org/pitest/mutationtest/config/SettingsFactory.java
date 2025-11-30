@@ -21,6 +21,7 @@ import org.pitest.mutationtest.build.DefaultTestPrioritiserFactory;
 import org.pitest.mutationtest.build.MutationGrouperFactory;
 import org.pitest.mutationtest.build.MutationInterceptorFactory;
 import org.pitest.mutationtest.build.TestPrioritiserFactory;
+import org.pitest.mutationtest.engine.prebake.PreBakeEngineFactory;
 import org.pitest.mutationtest.incremental.DefaultHistoryFactory;
 import org.pitest.mutationtest.verify.BuildVerifierFactory;
 import org.pitest.mutationtest.verify.CompoundBuildVerifierFactory;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
 
 public class SettingsFactory {
 
-  private final ReportOptions  options;
+  private final ReportOptions options;
   private final PluginServices plugins;
 
   public SettingsFactory(final ReportOptions options,
@@ -64,14 +65,18 @@ public class SettingsFactory {
   public CoverageExporter createCoverageExporter() {
     if (this.options.shouldExportLineCoverage()) {
       final FeatureParser parser = new FeatureParser();
-      return new CompoundCoverageExporterFactory(parser.parseFeatures(this.options.getFeatures()), this.plugins.findCoverageExport())
-                .create(this.options.getReportDirectoryStrategy());
+      return new CompoundCoverageExporterFactory(parser.parseFeatures(this.options.getFeatures()),
+          this.plugins.findCoverageExport())
+          .create(this.options.getReportDirectoryStrategy());
     } else {
       return new NullCoverageExporter();
     }
   }
 
   public MutationEngineFactory createEngine() {
+    if (this.options.getMutationEngine().equals("prebake")) {
+      return new PreBakeEngineFactory(); // TODO why is this necessary?
+    }
     for (final MutationEngineFactory each : this.plugins.findMutationEngines()) {
       if (each.name().equals(this.options.getMutationEngine())) {
         return each;
@@ -88,7 +93,8 @@ public class SettingsFactory {
 
   public ConfigurationUpdater createUpdater() {
     final FeatureParser parser = new FeatureParser();
-    return new CompoundConfigurationUpdater(parser.parseFeatures(this.options.getFeatures()), new ArrayList<>(plugins.findConfigurationUpdaters()));
+    return new CompoundConfigurationUpdater(parser.parseFeatures(this.options.getFeatures()),
+        new ArrayList<>(plugins.findConfigurationUpdaters()));
   }
 
   public JavaExecutableLocator getJavaExecutable() {
@@ -100,8 +106,10 @@ public class SettingsFactory {
   }
 
   public MutationGrouperFactory getMutationGrouper() {
-    // Grouping behaviour is important. We cannot have more than 1 class mutated within
-    // a JVM or else the last mutation will poison the next. This restriction can only
+    // Grouping behaviour is important. We cannot have more than 1 class mutated
+    // within
+    // a JVM or else the last mutation will poison the next. This restriction can
+    // only
     // be removed if the hotswap functionality is reworked.
     // Grouping behaviour is therefore hard coded for now.
     return new DefaultMutationGrouperFactory();
@@ -113,7 +121,7 @@ public class SettingsFactory {
       return new DefaultCodeSource(classPath);
     }
     if (sources.size() > 1) {
-       throw new RuntimeException("More than one CodeSource found on classpath.");
+      throw new RuntimeException("More than one CodeSource found on classpath.");
     }
     return sources.get(0).createCodeSource(classPath);
   }
@@ -122,7 +130,8 @@ public class SettingsFactory {
     List<HistoryFactory> available = this.plugins.findHistory();
 
     final FeatureParser parser = new FeatureParser();
-    FeatureSelector<HistoryFactory> historyFeatures = new FeatureSelector<>(parser.parseFeatures(this.options.getFeatures()), available);
+    FeatureSelector<HistoryFactory> historyFeatures = new FeatureSelector<>(
+        parser.parseFeatures(this.options.getFeatures()), available);
     List<HistoryFactory> enabledHistory = historyFeatures.getActiveFeatures();
 
     if (enabledHistory.isEmpty()) {
@@ -141,32 +150,32 @@ public class SettingsFactory {
     final FeatureSelector<ProvidesFeature> selector = new FeatureSelector<>(settings, available);
 
     List<Feature> enabledFeatures = selector.getActiveFeatures().stream()
-      .map(toFeature())
-      .filter(f -> !f.isInternal())
-      .distinct()
-      .sorted(byName())
-      .collect(Collectors.toList());
-      
+        .map(toFeature())
+        .filter(f -> !f.isInternal())
+        .distinct()
+        .sorted(byName())
+        .collect(Collectors.toList());
+
     enabledFeatures.forEach(enabled);
 
     available.stream()
-      .map(toFeature())
-      .filter(f -> !f.isInternal())
-      .distinct()
-      .sorted(byName())
-      .filter(f -> !enabledFeatures.contains(f))
-      .forEach(disabled);
+        .map(toFeature())
+        .filter(f -> !f.isInternal())
+        .distinct()
+        .sorted(byName())
+        .filter(f -> !enabledFeatures.contains(f))
+        .forEach(disabled);
   }
 
   public void checkRequestedFeatures() {
     FeatureParser parser = new FeatureParser();
     Set<String> available = this.plugins.findFeatures().stream()
-            .map(f -> f.provides().name().toUpperCase())
-            .collect(Collectors.toSet());
+        .map(f -> f.provides().name().toUpperCase())
+        .collect(Collectors.toSet());
 
     Optional<FeatureSetting> unknown = parser.parseFeatures(this.options.getFeatures()).stream()
-            .filter(f -> !available.contains(f.feature().toUpperCase()))
-            .findAny();
+        .filter(f -> !available.contains(f.feature().toUpperCase()))
+        .findAny();
 
     unknown.ifPresent(setting -> {
       throw new IllegalArgumentException("Unknown feature " + setting.feature());
@@ -189,7 +198,8 @@ public class SettingsFactory {
     final Collection<? extends MutationInterceptorFactory> interceptors = this.plugins
         .findInterceptors();
     final FeatureParser parser = new FeatureParser();
-    return new CompoundInterceptorFactory(parser.parseFeatures(this.options.getFeatures()), new ArrayList<>(interceptors));
+    return new CompoundInterceptorFactory(parser.parseFeatures(this.options.getFeatures()),
+        new ArrayList<>(interceptors));
   }
 
   public BuildVerifierFactory createVerifier() {
@@ -224,13 +234,12 @@ public class SettingsFactory {
   }
 
   private static Predicate<MutationResultListenerFactory> nameMatches(
-          final Iterable<String> outputFormats) {
+      final Iterable<String> outputFormats) {
     // plugins can be either activated here by name
     // or later via the feature mechanism
     return a -> FCollection.contains(outputFormats, equalsIgnoreCase(a.name()))
-            || !a.provides().equals(MutationResultListenerFactory.LEGACY_MODE);
+        || !a.provides().equals(MutationResultListenerFactory.LEGACY_MODE);
   }
-
 
   private static Predicate<String> equalsIgnoreCase(final String other) {
     return a -> a.equalsIgnoreCase(other);
@@ -251,7 +260,6 @@ public class SettingsFactory {
   private static Function<ProvidesFeature, Feature> toFeature() {
     return ProvidesFeature::provides;
   }
-
 
   private Comparator<Feature> byName() {
     return Comparator.comparing(Feature::name);

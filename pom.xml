@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>org.pitest</groupId>
+	<groupId>com.pawtograder.org.pitest</groupId>
 	<organization>
 	<name>org.pitest</name>
 	</organization>
@@ -22,7 +22,7 @@
     are used for few artifacts -->
 	<properties>
 		<!-- this revision number used only for local builds -->
-		<revision>dev-SNAPSHOT</revision>
+		<revision>2.0.0-SNAPSHOT</revision>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -216,7 +216,7 @@
 					<version>3.1.0</version>
 					<dependencies>
 						<dependency>
-							<groupId>org.pitest</groupId>
+							<groupId>com.pawtograder.org.pitest</groupId>
 							<artifactId>pitest-build-config</artifactId>
 							<version>${project.version}</version>
 						</dependency>

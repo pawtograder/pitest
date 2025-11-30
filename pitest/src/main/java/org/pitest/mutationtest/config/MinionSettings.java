@@ -6,6 +6,7 @@ import org.pitest.junit.NullConfiguration;
 import org.pitest.mutationtest.environment.CompositeReset;
 import org.pitest.mutationtest.environment.EnvironmentResetPlugin;
 import org.pitest.mutationtest.MutationEngineFactory;
+import org.pitest.mutationtest.engine.prebake.PreBakeEngineFactory;
 import org.pitest.mutationtest.environment.ResetEnvironment;
 import org.pitest.testapi.Configuration;
 import org.pitest.util.PitError;
@@ -25,11 +26,14 @@ public class MinionSettings {
 
   public ResetEnvironment createReset() {
     List<ResetEnvironment> resets = this.plugins.findResets().stream()
-            .map(EnvironmentResetPlugin::make).collect(Collectors.toList());
+        .map(EnvironmentResetPlugin::make).collect(Collectors.toList());
     return new CompositeReset(resets);
   }
 
   public MutationEngineFactory createEngine(String engine) {
+    if (engine.equals("prebake")) {
+      return new PreBakeEngineFactory(); // TODO: Why is this necessary?
+    }
     for (final MutationEngineFactory each : this.plugins.findMutationEngines()) {
       if (each.name().equals(engine)) {
         return each;
@@ -39,16 +43,15 @@ public class MinionSettings {
         + engine);
   }
 
-
   public Configuration getTestFrameworkPlugin(TestPluginArguments options, ClassByteArraySource source) {
     List<Configuration> configurations = this.plugins.findTestFrameworkPlugins().stream()
-            .map(p -> p.createTestFrameworkConfiguration(options.getGroupConfig(),
-                    source,
-                    options.getExcludedRunners(),
-                    options.getIncludedTestMethods()))
-            // hack until interface updated to return optional
-            .filter(c -> !(c instanceof NullConfiguration))
-            .collect(Collectors.toList());
+        .map(p -> p.createTestFrameworkConfiguration(options.getGroupConfig(),
+            source,
+            options.getExcludedRunners(),
+            options.getIncludedTestMethods()))
+        // hack until interface updated to return optional
+        .filter(c -> !(c instanceof NullConfiguration))
+        .collect(Collectors.toList());
 
     if (configurations.isEmpty()) {
       throw new PitHelpError(NO_TEST_PLUGIN);
@@ -57,6 +60,5 @@ public class MinionSettings {
     return new PrioritisingTestConfiguration(configurations);
 
   }
-
 
 }

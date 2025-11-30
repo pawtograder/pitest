@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<parent>
 		<artifactId>pitest-parent</artifactId>
-		<groupId>org.pitest</groupId>
+		<groupId>com.pawtograder.org.pitest</groupId>
 		<version>${revision}</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -44,20 +44,20 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest-entry</artifactId>
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest-entry</artifactId>
 			<type>test-jar</type>
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest</artifactId>
 			<type>test-jar</type>
 			<version>${project.version}</version>

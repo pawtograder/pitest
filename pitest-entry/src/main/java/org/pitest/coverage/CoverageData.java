@@ -15,12 +15,6 @@
 
 package org.pitest.coverage;
 
-import org.pitest.classinfo.ClassHash;
-import org.pitest.classinfo.ClassName;
-import org.pitest.classpath.CodeSource;
-import org.pitest.testapi.Description;
-import org.pitest.util.Log;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,6 +29,13 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import org.pitest.classinfo.ClassHash;
+import org.pitest.classinfo.ClassName;
+import org.pitest.classpath.CodeSource;
+import org.pitest.mutationtest.engine.prebake.PreBakedMutater;
+import org.pitest.testapi.Description;
+import org.pitest.util.Log;
 
 public class CoverageData implements CoverageDatabase {
 
@@ -57,12 +58,12 @@ public class CoverageData implements CoverageDatabase {
 
     checkForFailedTest(cr);
     final TestInfo ti = this.createTestInfo(cr.getTestUnitDescription(),
-            cr.getExecutionTime(), cr.getNumberOfCoveredBlocks());
+        cr.getExecutionTime(), cr.getNumberOfCoveredBlocks());
 
-    legacyClassCoverage.addTestToClasses(ti,cr.getCoverage());
+    legacyClassCoverage.addTestToClasses(ti, cr.getCoverage());
 
     for (final BlockLocation each : cr.getCoverage()) {
-        addTestsToBlockMap(ti, each);
+      addTestsToBlockMap(ti, each);
     }
   }
 
@@ -71,9 +72,15 @@ public class CoverageData implements CoverageDatabase {
     legacyClassCoverage.loadBlockDataOnly(coverageData);
   }
 
-
   @Override
   public Collection<TestInfo> getTestsForBlockLocation(BlockLocation location) {
+    if (location.getLocation().getMethodName().equals(PreBakedMutater.MUTATE_ENTIRE_CLASS_METHOD_NAME)) {
+      // Now we want to find all tests that cover ANY part of this class
+      return this.blockCoverage.entrySet().stream()
+          .filter(entry -> entry.getKey().getLocation().getClassName().equals(location.getLocation().getClassName()))
+          .flatMap(entry -> entry.getValue().stream())
+          .collect(Collectors.toSet());
+    }
     return this.blockCoverage.getOrDefault(location, Collections.emptySet());
   }
 
@@ -130,15 +137,15 @@ public class CoverageData implements CoverageDatabase {
 
   public List<BlockCoverage> createCoverage() {
     return this.blockCoverage.entrySet().stream()
-            .map(toBlockCoverage())
-            .collect(Collectors.toList());
+        .map(toBlockCoverage())
+        .collect(Collectors.toList());
   }
 
   private static Function<Entry<BlockLocation, Set<TestInfo>>, BlockCoverage> toBlockCoverage() {
     return a -> new BlockCoverage(a.getKey(),
-            a.getValue().stream()
-                    .map(TestInfo.toName())
-                    .collect(Collectors.toList()));
+        a.getValue().stream()
+            .map(TestInfo.toName())
+            .collect(Collectors.toList()));
   }
 
   @Override
@@ -150,8 +157,8 @@ public class CoverageData implements CoverageDatabase {
   private BigInteger generateCoverageNumber(Collection<TestInfo> coverage) {
     BigInteger coverageNumber = BigInteger.ZERO;
     Set<ClassName> testClasses = coverage.stream()
-            .map(TestInfo.toDefiningClassName())
-            .collect(Collectors.toSet());
+        .map(TestInfo.toDefiningClassName())
+        .collect(Collectors.toSet());
 
     for (final ClassHash each : this.code.fetchClassHashes(testClasses)) {
       coverageNumber = coverageNumber.add(each.getDeepHash());

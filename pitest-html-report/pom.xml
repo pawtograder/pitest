@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<artifactId>pitest-parent</artifactId>
-		<groupId>org.pitest</groupId>
+		<groupId>com.pawtograder.org.pitest</groupId>
 		<version>${revision}</version>
 	</parent>
 	<artifactId>pitest-html-report</artifactId>
@@ -83,7 +83,7 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest-entry</artifactId>
 			<version>${project.version}</version>
 		</dependency>
@@ -93,14 +93,14 @@
 			<version>3.2.1</version>
 		</dependency>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest-entry</artifactId>
 			<version>${project.version}</version>
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.pitest</groupId>
+			<groupId>com.pawtograder.org.pitest</groupId>
 			<artifactId>pitest</artifactId>
 			<version>${project.version}</version>
 			<type>test-jar</type>
