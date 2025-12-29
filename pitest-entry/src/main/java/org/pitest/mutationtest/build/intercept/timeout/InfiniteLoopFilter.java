@@ -42,6 +42,7 @@ public abstract class InfiniteLoopFilter implements MutationInterceptor {
   @Override
   public Collection<MutationDetails> intercept(
       Collection<MutationDetails> mutations, Mutater m) {
+
     final Map<Location,Collection<MutationDetails>> buckets = FCollection.bucket(mutations, mutationToLocation());
 
     final List<MutationDetails> willTimeout = new ArrayList<>();
@@ -60,6 +61,10 @@ public abstract class InfiniteLoopFilter implements MutationInterceptor {
       return Collections.emptyList();
     }
     MethodTree method = maybeMethod.get();
+    if (method.instructions().isEmpty()) {
+      // occurs for mutations to annotations on interfaces
+      return Collections.emptyList();
+    }
 
     //  give up if our matcher thinks loop is already infinite
     if (infiniteLoopMatcher().matches(method.instructions())) {

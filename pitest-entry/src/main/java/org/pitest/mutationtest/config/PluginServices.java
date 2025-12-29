@@ -2,6 +2,7 @@ package org.pitest.mutationtest.config;
 
 import org.pitest.classpath.CodeSourceFactory;
 import org.pitest.coverage.CoverageExporterFactory;
+import org.pitest.coverage.TestStatListenerFactory;
 import org.pitest.mutationtest.HistoryFactory;
 import org.pitest.mutationtest.build.CoverageTransformerFactory;
 import org.pitest.mutationtest.MutationEngineFactory;
@@ -9,6 +10,7 @@ import org.pitest.mutationtest.MutationResultInterceptor;
 import org.pitest.mutationtest.MutationResultListenerFactory;
 import org.pitest.mutationtest.build.MutationGrouperFactory;
 import org.pitest.mutationtest.build.MutationInterceptorFactory;
+import org.pitest.mutationtest.build.TestFilterFactory;
 import org.pitest.mutationtest.build.TestPrioritiserFactory;
 import org.pitest.mutationtest.engine.gregor.MethodMutatorFactory;
 import org.pitest.mutationtest.engine.gregor.MutatorInfo;
@@ -63,6 +65,8 @@ public class PluginServices {
     l.addAll(findHistory());
     l.addAll(findCoverageExport());
     l.addAll(findStandAloneMutatorInfos());
+    l.addAll(findTestStatListeners());
+    l.addAll(findTestFilters());
     return l;
   }
 
@@ -140,6 +144,15 @@ public class PluginServices {
 
   public List<CoverageExporterFactory> findCoverageExport() {
     return new ArrayList<>(load(CoverageExporterFactory.class));
+  }
+
+  public List<TestStatListenerFactory> findTestStatListeners() {
+    return new ArrayList<>(load(TestStatListenerFactory.class));
+  }
+
+
+  public List<TestFilterFactory> findTestFilters() {
+      return new ArrayList<>(load(TestFilterFactory.class));
   }
 
   public List<MutatorInfo> findMutatorInfos() {

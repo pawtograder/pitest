@@ -60,6 +60,7 @@ public class EqualsPerformanceShortcutFilter implements MutationInterceptor {
   @Override
   public Collection<MutationDetails> intercept(
       Collection<MutationDetails> mutations, Mutater m) {
+
    final List<MutationDetails> doNotTouch = mutations.stream()
            .filter(inEqualsMethod().negate())
            .collect(Collectors.toList());
@@ -92,6 +93,11 @@ public class EqualsPerformanceShortcutFilter implements MutationInterceptor {
   }
 
   private boolean shortCutEquals(MethodTree tree, MutationDetails a, Mutater m) {
+    if (tree.instructions().isEmpty()) {
+      // occurs for mutations to annotations on interfaces
+      return false;
+    }
+
     if (!mutatesAConditionalJump(tree, a.getInstructionIndex())) {
       return false;
     }
@@ -106,8 +112,10 @@ public class EqualsPerformanceShortcutFilter implements MutationInterceptor {
   }
 
   private boolean mutatesAConditionalJump(MethodTree tree, int index) {
-    final AbstractInsnNode mutatedInsns = tree.instruction(index);
-    return InstructionMatchers.aConditionalJump().asPredicate().test(mutatedInsns);
+    var mutatedInsns = tree.instructionForIndex(index);
+    return mutatedInsns
+            .map(n -> InstructionMatchers.aConditionalJump().asPredicate().test(n))
+            .orElse(false);
   }
 
   private Predicate<MutationDetails> inEqualsMethod() {

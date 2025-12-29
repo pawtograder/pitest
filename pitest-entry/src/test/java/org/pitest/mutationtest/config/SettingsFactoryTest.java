@@ -5,7 +5,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.pitest.coverage.CompoundTestStatListener;
 import org.pitest.coverage.CoverageExporter;
+import org.pitest.coverage.TestInfo;
 import org.pitest.coverage.execute.CoverageOptions;
 import org.pitest.coverage.export.DefaultCoverageExporter;
 import org.pitest.coverage.export.NullCoverageExporter;
@@ -184,7 +186,23 @@ public class SettingsFactoryTest {
 
   @Test
   public void producesDefaultHistoryStore() {
+
     assertThat(this.testee.createHistory()).isInstanceOf(DefaultHistoryFactory.class);
+  }
+
+  @Test
+  public void providesATestStatListener() {
+    this.options.setReportDir("");
+    assertThat(this.testee.createTestStatListener()).isInstanceOf(CompoundTestStatListener.class);
+  }
+
+  @Test
+  public void doesNotFilterTestByDefault() {
+      assertThat(this.testee.createTestFilter().include(unused(), unused())).isTrue();
+  }
+
+  private <T>T unused() {
+    return null;
   }
 
 }

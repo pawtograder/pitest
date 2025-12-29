@@ -183,6 +183,7 @@ public class ForEachLoopFilter implements MutationInterceptor {
   @Override
   public Collection<MutationDetails> intercept(
       Collection<MutationDetails> mutations, Mutater m) {
+
     return mutations.stream().filter(mutatesIteratorLoopPlumbing().negate())
             .collect(Collectors.toList());
   }
@@ -196,11 +197,19 @@ public class ForEachLoopFilter implements MutationInterceptor {
       }
       MethodTree method = maybeMethod.get();
 
-      final AbstractInsnNode mutatedInstruction = method.instruction(instruction);
+      if (method.instructions().isEmpty()) {
+        // occurs for mutations to annotations on interfaces
+        return false;
+      }
+
+      var mutatedInstruction = method.instructionForIndex(instruction);
+      if (mutatedInstruction.isEmpty()) {
+        return false;
+      }
 
       Set<AbstractInsnNode> toAvoid = cache.computeIfAbsent(method, this::findLoopInstructions);
 
-      return toAvoid.contains(mutatedInstruction);
+      return toAvoid.contains(mutatedInstruction.get());
     };
   }
 

@@ -2,6 +2,7 @@ package org.pitest.bytecode.analysis;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -34,6 +35,7 @@ public class MethodTree {
    * @param index index to work backwards from
    * @return The previous instruction
    */
+  @Deprecated
   public AbstractInsnNode realInstructionBefore(int index) {
     AbstractInsnNode candidate = instructions().get(index - 1);
     if (candidate.getOpcode() == -1) {
@@ -41,9 +43,17 @@ public class MethodTree {
     }
     return candidate;
   }
-  
+
+  public Optional<AbstractInsnNode> instructionForIndex(int index) {
+    return Optional.ofNullable(instruction(index));
+  }
+
+  @Deprecated
   public AbstractInsnNode instruction(int index) {
-      return instructions().get(index);
+    if (index < 0 || index >= instructions().size() ) {
+      return null;
+    }
+    return instructions().get(index);
   }
   
   public List<AbstractInsnNode> instructions() {
@@ -69,6 +79,11 @@ public class MethodTree {
   public boolean isPrivate() {
     return (this.rawNode.access & Opcodes.ACC_PRIVATE) != 0;
   }
+
+  public boolean isAbstract() {
+    return (this.rawNode.access & Opcodes.ACC_ABSTRACT) != 0;
+  }
+
 
   public boolean returns(ClassName clazz) {
     return this.rawNode.desc.endsWith("L" + clazz.asInternalName() + ";");

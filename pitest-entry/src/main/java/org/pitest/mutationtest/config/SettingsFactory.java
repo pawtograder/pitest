@@ -5,7 +5,10 @@ import org.pitest.classpath.CodeSourceFactory;
 import org.pitest.classpath.DefaultCodeSource;
 import org.pitest.classpath.ProjectClassPaths;
 import org.pitest.coverage.CompoundCoverageExporterFactory;
+import org.pitest.coverage.CompoundTestStatListener;
 import org.pitest.coverage.CoverageExporter;
+import org.pitest.coverage.TestStatListener;
+import org.pitest.coverage.TestStatListenerFactory;
 import org.pitest.mutationtest.HistoryFactory;
 import org.pitest.mutationtest.build.CoverageTransformer;
 import org.pitest.mutationtest.build.CoverageTransformerFactory;
@@ -18,8 +21,12 @@ import org.pitest.mutationtest.MutationResultListenerFactory;
 import org.pitest.mutationtest.build.CompoundInterceptorFactory;
 import org.pitest.mutationtest.build.DefaultMutationGrouperFactory;
 import org.pitest.mutationtest.build.DefaultTestPrioritiserFactory;
+import org.pitest.mutationtest.build.FilteringPrioritiser;
 import org.pitest.mutationtest.build.MutationGrouperFactory;
 import org.pitest.mutationtest.build.MutationInterceptorFactory;
+import org.pitest.mutationtest.build.TestFilter;
+import org.pitest.mutationtest.build.TestFilterFactory;
+import org.pitest.mutationtest.build.TestFilterParams;
 import org.pitest.mutationtest.build.TestPrioritiserFactory;
 import org.pitest.mutationtest.engine.prebake.PreBakeEngineFactory;
 import org.pitest.mutationtest.incremental.DefaultHistoryFactory;
@@ -72,6 +79,33 @@ public class SettingsFactory {
       return new NullCoverageExporter();
     }
   }
+
+  public TestStatListener createTestStatListener() {
+    ResultOutputStrategy outputStrategy = getOutputStrategy();
+
+    final FeatureParser parser = new FeatureParser();
+    List<TestStatListenerFactory> available = plugins.findTestStatListeners();
+    FeatureSelector<TestStatListenerFactory> features = new FeatureSelector<>(parser.parseFeatures(this.options.getFeatures()), available);
+    List<TestStatListenerFactory> enabled = features.getActiveFeatures();
+
+    List<TestStatListener> listeners = enabled.stream()
+            .map(f -> f.createTestListener(outputStrategy))
+            .collect(Collectors.toList());
+    return new CompoundTestStatListener(listeners);
+  }
+
+  public TestFilter createTestFilter() {
+    FeatureParser parser = new FeatureParser();
+    List<TestFilterFactory> available = plugins.findTestFilters();
+    FeatureSelector<TestFilterFactory> features = new FeatureSelector<>(parser.parseFeatures(this.options.getFeatures()), available);
+    List<TestFilterFactory> enabled = features.getActiveFeatures();
+
+    List<TestFilter> filters = enabled.stream()
+            .map(f -> f.makeFilter(new TestFilterParams(features.getSettingForFeature(f.provides().name()))))
+            .collect(Collectors.toList());
+    return TestFilter.combine(filters);
+  }
+
 
   public MutationEngineFactory createEngine() {
     if (this.options.getMutationEngine().equals("prebake")) {
@@ -185,7 +219,8 @@ public class SettingsFactory {
   public TestPrioritiserFactory getTestPrioritiser() {
     final Collection<? extends TestPrioritiserFactory> testPickers = this.plugins
         .findTestPrioritisers();
-    return firstOrDefault(testPickers, new DefaultTestPrioritiserFactory());
+    TestFilter filter = createTestFilter();
+    return new FilteringPrioritiser(firstOrDefault(testPickers, new DefaultTestPrioritiserFactory()), filter);
   }
 
   public CoverageOptions createCoverageOptions() {

@@ -1,4 +1,4 @@
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/org.pitest/pitest/badge.svg?style=flat)](https://maven-badges.herokuapp.com/maven-central/org.pitest/pitest)
+[![Maven Central Version](https://img.shields.io/maven-central/v/org.pitest/pitest)](https://central.sonatype.com/artifact/org.pitest/pitest)
 ![Build Statis](https://github.com/hcoles/pitest/workflows/CI/badge.svg?branch=master)
 [![Build Status](https://dev.azure.com/henrycoles/pitest/_apis/build/status/hcoles.pitest?branchName=master)](https://dev.azure.com/henrycoles/pitest/_build/latest?definitionId=3&branchName=master)
 
@@ -7,6 +7,73 @@ Pitest (aka PIT) is a state of the art mutation testing system for Java and the 
 Read all about it at https://pitest.org
 
 ## Releases
+
+## 1.22.0
+
+* #1437 Test filter extension point
+
+## 1.21.1
+
+* #1436 Allow filtering JUnit4 by runner
+
+## 1.21.0
+
+* #1434 deprecate unsafe instruction index access
+
+## 1.20.7
+
+* #1432 Bump commons-text to 1.14.0 
+* #1433 Expand MethodTree api 
+
+## 1.20.6
+
+* #1431 Fix performance regression
+
+## 1.20.5
+
+* #1428 Support categories for junit4 parametrised tests
+* #1429 Bump asm to 9.9
+
+## 1.20.4
+
+* #1427 Disable empty method warnings for interfaces
+
+## 1.20.3
+
+* #1426 auto add junit engines when missing from classpath
+
+## 1.20.2
+
+* #1422 Handle args files in the argLine
+
+## 1.20.1
+
+* #1417 Update dependencies
+* #1418 Filter build messages with the same content
+* #1419 Prevent re-evaluation of suite classes
+
+## 1.20.0
+
+* #1415 Extension point for test stat listeners
+
+## 1.19.6
+
+* #1413 Bump asm to 9.8
+* #1414 Show basic test stats
+
+## 1.19.5
+
+* #1412 Catch and log empty methods in filters
+
+## 1.19.4
+
+* #1409 Support Quarkus 3.22 and above
+
+Note Quarkus support also requires version 1.2.3 or above of the pitest JUnit 5 plugin.
+
+## 1.19.3
+
+* #1407 Log number of active classloaders
 
 ## 1.19.2
 
