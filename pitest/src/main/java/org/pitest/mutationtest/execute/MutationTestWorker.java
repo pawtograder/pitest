@@ -146,7 +146,7 @@ public class MutationTestWorker {
     final long t0 = System.nanoTime();
 
     if (this.hotswap.insertClass(mutationId.getClassName(), this.loader,
-        mutatedClass.getBytes())) {
+        mutatedClass.getBytes(), mutatedClass.getCompanionClasses())) {
       if (DEBUG) {
         LOG.fine("replaced class with mutant in "
             + NANOSECONDS.toMillis(System.nanoTime() - t0) + " ms");

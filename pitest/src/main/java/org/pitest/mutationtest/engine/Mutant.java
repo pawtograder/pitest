@@ -14,6 +14,10 @@
  */
 package org.pitest.mutationtest.engine;
 
+import java.util.Collections;
+import java.util.Map;
+import org.pitest.classinfo.ClassName;
+
 /**
  * A fully generated mutant
  */
@@ -21,10 +25,16 @@ public final class Mutant {
 
   private final MutationDetails details;
   private final byte[]          bytes;
+  private final Map<ClassName, byte[]> companionClasses;
 
   public Mutant(final MutationDetails details, final byte[] bytes) {
+    this(details, bytes, Collections.emptyMap());
+  }
+
+  public Mutant(final MutationDetails details, final byte[] bytes, final Map<ClassName, byte[]> companionClasses) {
     this.details = details;
     this.bytes = bytes;
+    this.companionClasses = companionClasses != null ? companionClasses : Collections.emptyMap();
   }
 
   /**
@@ -43,6 +53,15 @@ public final class Mutant {
    */
   public byte[] getBytes() {
     return this.bytes;
+  }
+
+  /**
+   * Returns companion classes (e.g., inner classes) that should be swapped together with the main class
+   *
+   * @return A map of class names to their bytecode
+   */
+  public Map<ClassName, byte[]> getCompanionClasses() {
+    return this.companionClasses;
   }
 
 }

@@ -7,8 +7,10 @@ import org.pitest.util.Log;
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -33,8 +35,7 @@ public class CatchNewClassLoadersTransformer implements ClassFileTransformer {
 
     private static final Logger LOG = Log.getLogger();
 
-    private static String targetClass;
-    private static byte[] currentMutant;
+    private static Map<String, byte[]> targetClasses = new ConcurrentHashMap<>();
 
     //
     // Storage was introduced to support Quarkus, however they changed their classloading strategy in
@@ -47,15 +48,23 @@ public class CatchNewClassLoadersTransformer implements ClassFileTransformer {
     static final Map<ClassLoader, Object> CLASS_LOADERS = Collections.synchronizedMap(new WeakHashMap<>());
 
     public static synchronized void setMutant(String className, byte[] mutant) {
-        targetClass = className;
-        currentMutant = mutant;
+        Map<String, byte[]> mutants = new LinkedHashMap<>();
+        mutants.put(className, mutant);
+        setMutants(mutants);
+    }
+
+    public static synchronized void setMutants(Map<String, byte[]> mutants) {
+        targetClasses.clear();
+        targetClasses.putAll(mutants);
 
         logClassloaders();
 
         for (ClassLoader each : CLASS_LOADERS.keySet()) {
-            final Class<?> clazz = checkClassForLoader(each, className);
-            if (clazz != null) {
-                HotSwapAgent.hotSwap(clazz, mutant);
+            for (Map.Entry<String, byte[]> entry : mutants.entrySet()) {
+                final Class<?> clazz = checkClassForLoader(each, entry.getKey());
+                if (clazz != null) {
+                    HotSwapAgent.hotSwap(clazz, entry.getValue());
+                }
             }
         }
     }
@@ -65,12 +74,13 @@ public class CatchNewClassLoadersTransformer implements ClassFileTransformer {
                             final Class<?> classBeingRedefined,
                             final ProtectionDomain protectionDomain, final byte[] classfileBuffer) {
 
-        if (className.equals(targetClass) && shouldTransform(loader)) {
+        byte[] mutant = targetClasses.get(className);
+        if (mutant != null && shouldTransform(loader)) {
             if (shouldStore(loader)) {
                 CLASS_LOADERS.put(loader, null);
             }
             // we might be mid-mutation so return the mutated bytes
-            return currentMutant;
+            return mutant;
         }
 
         return null;
