@@ -47,6 +47,16 @@ public class HotSwapAgent {
       return true;
     } catch (final ClassNotFoundException | UnmodifiableClassException | VerifyError | InternalError e) {
       // swallow
+    } catch (final UnsupportedOperationException e) {
+      // JVMTI rejects this redefinition (e.g. "class redefinition failed:
+      // attempted to change the schema (add/remove fields)"). This happens when
+      // the loaded class and the candidate bytes have different shapes - most
+      // notably with the whole-class "prebake" engine when the class actually
+      // loaded in the minion is not the one the mutant was generated from (e.g.
+      // a same-named class shadowing it on the classpath). Swallow (as with the
+      // other redefine failures above) so just this mutant is marked NON_VIABLE
+      // rather than letting the exception propagate and kill the whole minion
+      // (which would turn every mutation in the batch into a RUN_ERROR).
     }
     return false;
   }

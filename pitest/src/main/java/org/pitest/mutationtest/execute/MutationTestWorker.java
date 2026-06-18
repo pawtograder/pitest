@@ -14,6 +14,9 @@
  */
 package org.pitest.mutationtest.execute;
 
+import org.pitest.classinfo.ClassByteArraySource;
+import org.pitest.classinfo.ClassName;
+import org.pitest.classpath.ClassloaderByteArraySource;
 import org.pitest.mutationtest.DetectionStatus;
 import org.pitest.mutationtest.MutationStatusTestPair;
 import org.pitest.mutationtest.environment.ResetEnvironment;
@@ -36,7 +39,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -61,6 +68,21 @@ public class MutationTestWorker {
 
   private final ResetEnvironment                            reset;
 
+  /**
+   * When set, the class targeted by a mutation is redefined back to its original
+   * (classloader) bytes before the next mutant is swapped in, so every redefine
+   * is original-&gt;variant rather than variant-&gt;variant. This matters for the
+   * whole-class "prebake" engine, where repeatedly redefining the same class
+   * with successive variants in one JVM can crash the JVMTI agent (see the
+   * single-class assumption documented on {@link HotSwap}).
+   */
+  static final String RESET_BEFORE_REDEFINE_PROPERTY = "pitest.prebake.resetBeforeRedefine";
+
+  private final boolean                                     resetBeforeRedefine;
+  // Original bytes of classes already redefined in this minion, so we can roll
+  // them back to their pristine state before applying the next mutant.
+  private final ClassByteArraySource                        originalBytes;
+  private final Set<ClassName>                              redefinedClasses = new HashSet<>();
 
   public MutationTestWorker(HotSwap hotswap,
                             Mutater mutater,
@@ -72,6 +94,8 @@ public class MutationTestWorker {
     this.mutater = mutater;
     this.hotswap = hotswap;
     this.fullMutationMatrix = fullMutationMatrix;
+    this.resetBeforeRedefine = Boolean.getBoolean(RESET_BEFORE_REDEFINE_PROPERTY);
+    this.originalBytes = new ClassloaderByteArraySource(loader);
   }
 
   protected void run(final Collection<MutationDetails> range, final Reporter r,
@@ -145,8 +169,17 @@ public class MutationTestWorker {
     final Container c = createNewContainer();
     final long t0 = System.nanoTime();
 
-    if (this.hotswap.insertClass(mutationId.getClassName(), this.loader,
+    final ClassName targetClass = mutationId.getClassName();
+    if (this.resetBeforeRedefine) {
+      resetToOriginalIfNeeded(targetClass, mutatedClass.getCompanionClasses().keySet());
+    }
+
+    if (this.hotswap.insertClass(targetClass, this.loader,
         mutatedClass.getBytes(), mutatedClass.getCompanionClasses())) {
+      if (this.resetBeforeRedefine) {
+        this.redefinedClasses.add(targetClass);
+        this.redefinedClasses.addAll(mutatedClass.getCompanionClasses().keySet());
+      }
       if (DEBUG) {
         LOG.fine("replaced class with mutant in "
             + NANOSECONDS.toMillis(System.nanoTime() - t0) + " ms");
@@ -161,6 +194,46 @@ public class MutationTestWorker {
               .collect(Collectors.toList()));
     }
     return mutationDetected;
+  }
+
+  /**
+   * Redefines the target class (and any companion classes) back to their
+   * original classloader bytes if they were previously redefined with a mutant
+   * in this minion. Ensures the subsequent mutant redefine starts from the
+   * pristine class state (original-&gt;variant) rather than from a prior variant.
+   */
+  private void resetToOriginalIfNeeded(final ClassName target, final Set<ClassName> companions) {
+    final Set<ClassName> toReset = new HashSet<>();
+    if (this.redefinedClasses.contains(target)) {
+      toReset.add(target);
+    }
+    for (final ClassName companion : companions) {
+      if (this.redefinedClasses.contains(companion)) {
+        toReset.add(companion);
+      }
+    }
+    if (toReset.isEmpty()) {
+      return;
+    }
+    final Map<ClassName, byte[]> originals = new java.util.LinkedHashMap<>();
+    for (final ClassName cn : toReset) {
+      final Optional<byte[]> bytes = this.originalBytes.getBytes(cn.asJavaName());
+      if (bytes.isPresent()) {
+        originals.put(cn, bytes.get());
+      } else {
+        LOG.warning("Could not load original bytes for " + cn
+            + " to reset before redefine; skipping reset for this class");
+      }
+    }
+    for (final Map.Entry<ClassName, byte[]> each : originals.entrySet()) {
+      // restore pristine state; failure here is non-fatal, the redefine below
+      // will simply proceed from the prior state as it did before this feature.
+      this.hotswap.insertClass(each.getKey(), this.loader, each.getValue());
+      this.redefinedClasses.remove(each.getKey());
+    }
+    if (DEBUG) {
+      LOG.fine("reset " + originals.keySet() + " to original bytes before redefine");
+    }
   }
 
   private static Container createNewContainer() {
