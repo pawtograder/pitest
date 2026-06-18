@@ -361,15 +361,63 @@ public class MutationCoverage {
             this.data.getTimeoutConstant()), this.data.getVerbosity(), this.data.isFullMutationMatrix(),
             this.data.getClassPath().getLocalClassPath());
 
+    final int unitSize = effectiveMutationUnitSize();
     final MutationGrouper grouper = this.settings.getMutationGrouper().makeFactory(
         this.data.getFreeFormProperties(), this.code,
-        this.data.getNumberOfThreads(), this.data.getMutationUnitSize());
+        this.data.getNumberOfThreads(), unitSize);
 
     final MutationTestBuilder builder = new MutationTestBuilder(data.mode(), wf, history,
         source, grouper);
 
     return builder.createMutationTestUnits(this.code.getCodeUnderTestNames());
   }
+
+  /**
+   * Name of the prebake mutation engine. Whole-class redefine engine where each
+   * "mutant" is a complete class-file variant hot-swapped over the source class.
+   */
+  private static final String PREBAKE_ENGINE = "prebake";
+
+  /**
+   * System property that forces the prebake engine to run exactly one mutation
+   * per minion JVM (one whole-class JVMTI redefine per process).
+   *
+   * <p>The prebake engine redefines the same source class with successive
+   * whole-class variants. Doing two-or-more redefines of the same class in one
+   * JVM (variant -&gt; variant) can crash the JVMTI agent / minion (see the
+   * implicit single-class assumption documented on {@code HotSwap}). Capping the
+   * analysis unit size to 1 for prebake routes every mutation to a fresh minion,
+   * so each redefine is the always-safe single-redefine case.
+   *
+   * <p>Read in the <em>main</em> PIT process (where mutations are grouped into
+   * analysis units), so it must be passed as a JVM system property of that
+   * process (e.g. gradle plugin {@code mainProcessJvmArgs}).
+   */
+  public static final String PREBAKE_ONE_MUTATION_PER_JVM_PROPERTY =
+      "pitest.prebake.oneMutationPerJvm";
+
+  /**
+   * Returns the analysis-unit size to use for grouping, honouring the prebake
+   * one-mutation-per-JVM flag. When that flag is active for the prebake engine
+   * the unit size is forced to 1 regardless of the configured mutationUnitSize.
+   */
+  private int effectiveMutationUnitSize() {
+    final int configured = this.data.getMutationUnitSize();
+    if (oneMutationPerJvmRequested()
+        && PREBAKE_ENGINE.equalsIgnoreCase(this.data.getMutationEngine())) {
+      if (configured != 1) {
+        LOG.info("prebake one-mutation-per-JVM enabled (" + PREBAKE_ONE_MUTATION_PER_JVM_PROPERTY
+            + "); forcing mutationUnitSize to 1 (was " + configured + ")");
+      }
+      return 1;
+    }
+    return configured;
+  }
+
+  private static boolean oneMutationPerJvmRequested() {
+    return Boolean.getBoolean(PREBAKE_ONE_MUTATION_PER_JVM_PROPERTY);
+  }
+
   private void checkMutationsFound(final List<MutationAnalysisUnit> tus) {
     if (tus.isEmpty()) {
       if (this.data.shouldFailWhenNoMutations()) {
