@@ -7,9 +7,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.RecordComponentVisitor;
+import org.objectweb.asm.TypePath;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.ClassNode;
@@ -93,7 +97,7 @@ public class PreBakedMutater implements Mutater {
                 sourceClassName.replace('.', '/'));
 
         // Apply the transformation to outer class
-        ClassRemapper classRemapper = new ClassRemapper(writer, remapper);
+        ClassRemapper classRemapper = new ClassRemapper(new RecordComponentTypeAnnotationStripper(writer), remapper);
         mutatedReader.accept(classRemapper, ClassReader.EXPAND_FRAMES);
         byte[] transformedOuterBytes = writer.toByteArray();
 
@@ -110,7 +114,8 @@ public class PreBakedMutater implements Mutater {
                     // Transform inner class with same remapper
                     ClassReader innerReader = new ClassReader(innerBytes.get());
                     ClassWriter innerWriter = new ClassWriter(innerReader, ClassWriter.COMPUTE_MAXS);
-                    ClassRemapper innerRemapper = new ClassRemapper(innerWriter, remapper);
+                    ClassRemapper innerRemapper = new ClassRemapper(
+                            new RecordComponentTypeAnnotationStripper(innerWriter), remapper);
                     innerReader.accept(innerRemapper, ClassReader.EXPAND_FRAMES);
                     
                     // Calculate target inner class name
@@ -126,6 +131,47 @@ public class PreBakedMutater implements Mutater {
                         "Replace " + sourceClassName + " with " + mutatedClassName, 0, 0),
                 transformedOuterBytes,
                 companions);
+    }
+
+    /**
+     * Drops type annotations (RuntimeVisibleTypeAnnotations / RuntimeInvisibleTypeAnnotations)
+     * from record components in the bytes handed to HotSwap.
+     *
+     * <p>Works around JDK-8376185 (fixed in JDK 25.0.4 and 27, not in 21u as of 21.0.12).
+     * When a redefinition needs its constant pool merged, HotSpot rewrites the record
+     * components' type annotations with the parser for ordinary annotations. That fails,
+     * and load_new_class_versions ignores the failure. The redefinition then "succeeds"
+     * with the new class's un-merged constant pool, while the live class keeps its original
+     * Record attribute, whose cp indices now point at unrelated entries. The next
+     * redefinition of the class fails with "attempted to change the class NestHost,
+     * NestMembers, Record, or PermittedSubclasses attribute", and Class.getRecordComponents()
+     * can crash the JVM. Pre-baked mutants always hit this, because their constant pool
+     * layout comes from a different class file than the one that is loaded.
+     *
+     * <p>Dropping the attribute has no observable effect on a redefined class: redefinition
+     * never replaces the live class's Record attribute, and HotSpot explicitly permits
+     * record component annotations to change. Type annotations on the backing fields,
+     * methods and code are kept.
+     */
+    static class RecordComponentTypeAnnotationStripper extends ClassVisitor {
+        RecordComponentTypeAnnotationStripper(ClassVisitor cv) {
+            super(Opcodes.ASM9, cv);
+        }
+
+        @Override
+        public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
+            RecordComponentVisitor rcv = super.visitRecordComponent(name, descriptor, signature);
+            if (rcv == null) {
+                return null;
+            }
+            return new RecordComponentVisitor(Opcodes.ASM9, rcv) {
+                @Override
+                public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath,
+                        String desc, boolean visible) {
+                    return null;
+                }
+            };
+        }
     }
 
     private static class PrefixRemapper extends Remapper {
