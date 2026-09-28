@@ -3,11 +3,10 @@ package org.pitest.mutationtest.engine.prebake;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeTrue;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +48,24 @@ public class PreBakedMutaterTest {
   }
 
   @Test
+  public void stripsRecordComponentTypeAnnotationsFromCompanionClasses() {
+    Mutant mutant = RecordFixtures.prebakedMutants(true, "M1").get(0);
+    assertThat(mutant.getCompanionClasses()).hasSize(1);
+    byte[] bytes = mutant.getCompanionClasses().values().iterator().next();
+    ClassNode companion = new ClassNode(Opcodes.ASM9);
+    new ClassReader(bytes).accept(companion, 0);
+
+    assertThat(companion.name).isEqualTo(RecordFixtures.ORIGINAL + RecordFixtures.COMPANION_SUFFIX);
+    assertThat(companion.recordComponents).extracting(c -> c.name).containsExactly("a", "b");
+    for (RecordComponentNode c : companion.recordComponents) {
+      assertThat(c.visibleTypeAnnotations).isNullOrEmpty();
+      assertThat(c.invisibleTypeAnnotations).isNullOrEmpty();
+    }
+    assertThat(companion.fields.get(1).visibleTypeAnnotations).extracting(a -> a.desc)
+        .containsExactly(RecordFixtures.ANNOTATION);
+  }
+
+  @Test
   public void keepsTypeAnnotationsOutsideRecordComponents() {
     ClassNode mutant = read(RecordFixtures.prebakedMutants("M1").get(0));
     assertThat(mutant.fields.get(1).name).isEqualTo("b");
@@ -71,9 +88,16 @@ public class PreBakedMutaterTest {
         "-cp", System.getProperty("java.class.path"),
         RecordHotSwapHarness.class.getName(), "M1", "M2", "M3");
     pb.redirectErrorStream(true);
+    // Output goes to a file so a hung child cannot block us before the timeout applies.
+    File log = folder.newFile("harness.log");
+    pb.redirectOutput(log);
     Process p = pb.start();
-    String output = readAll(p.getInputStream());
-    assertThat(p.waitFor(60, TimeUnit.SECONDS)).isTrue();
+    boolean finished = p.waitFor(60, TimeUnit.SECONDS);
+    if (!finished) {
+      p.destroyForcibly().waitFor();
+    }
+    String output = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
+    assertThat(finished).as("harness timed out:\n" + output).isTrue();
 
     assertThat(output).contains("swap M1: OK", "swap M2: OK", "swap M3: OK")
         .doesNotContain("FAIL", "WRONG");
@@ -102,11 +126,5 @@ public class PreBakedMutaterTest {
 
   private static int javaFeatureVersion() {
     return Runtime.version().feature();
-  }
-
-  private static String readAll(InputStream in) throws Exception {
-    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-    in.transferTo(bytes);
-    return bytes.toString(StandardCharsets.UTF_8);
   }
 }

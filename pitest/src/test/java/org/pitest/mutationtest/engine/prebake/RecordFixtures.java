@@ -33,16 +33,17 @@ final class RecordFixtures {
   static final String ORIGINAL = "prebakefixture/R";
   static final String ANNOTATION = "Lprebakefixture/N;";
   static final String ORIGINAL_DESCRIPTION = "original";
+  static final String COMPANION_SUFFIX = "$C";
 
   private RecordFixtures() {
   }
 
   static byte[] original() {
-    return record(ORIGINAL, ORIGINAL_DESCRIPTION, false);
+    return record(ORIGINAL, ORIGINAL_DESCRIPTION, false, null);
   }
 
   static byte[] mutant(String name) {
-    return record(ORIGINAL + "_" + name, name, true);
+    return record(mutantName(name), name, true, null);
   }
 
   static String mutantName(String name) {
@@ -50,10 +51,25 @@ final class RecordFixtures {
   }
 
   static ClassByteArraySource source(String... mutants) {
+    return source(false, mutants);
+  }
+
+  /**
+   * With companions, each mutant declares a nested record {@code $C} (itself with an
+   * annotated component), which PreBakedMutater returns as a companion class.
+   */
+  static ClassByteArraySource source(boolean withCompanions, String... mutants) {
     Map<String, byte[]> classes = new HashMap<>();
     classes.put(ORIGINAL, original());
     for (String m : mutants) {
-      classes.put(mutantName(m), mutant(m));
+      if (withCompanions) {
+        String outer = mutantName(m);
+        classes.put(outer, record(outer, m, true, outer + COMPANION_SUFFIX));
+        classes.put(outer + COMPANION_SUFFIX,
+            record(outer + COMPANION_SUFFIX, m, true, null));
+      } else {
+        classes.put(mutantName(m), mutant(m));
+      }
     }
     return clazz -> Optional.ofNullable(classes.get(clazz.replace('.', '/')));
   }
@@ -63,22 +79,31 @@ final class RecordFixtures {
    * for each id, in the order the mutants are given.
    */
   static List<Mutant> prebakedMutants(String... mutants) {
+    return prebakedMutants(false, mutants);
+  }
+
+  static List<Mutant> prebakedMutants(boolean withCompanions, String... mutants) {
     List<PreBakeConfiguration.PreBakeConfigurationEntry> entries = Arrays.stream(mutants)
         .map(m -> new PreBakeConfiguration.PreBakeConfigurationEntry(
             ORIGINAL.replace('/', '.'), mutantName(m).replace('/', '.')))
         .collect(Collectors.toList());
-    PreBakedMutater testee = new PreBakedMutater(source(mutants), new PreBakeConfiguration(entries));
+    PreBakedMutater testee = new PreBakedMutater(source(withCompanions, mutants), new PreBakeConfiguration(entries));
     return testee.findMutations(ClassName.fromString(ORIGINAL)).stream()
         .map(MutationDetails::getId)
         .map(testee::getMutation)
         .collect(Collectors.toList());
   }
 
-  private static byte[] record(String internalName, String description, boolean shuffled) {
+  private static byte[] record(String internalName, String description, boolean shuffled,
+      String nestedRecord) {
     ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
     cw.visit(Opcodes.V16, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
         internalName, null, "java/lang/Record", null);
     cw.visitSource("R.java", null);
+    if (nestedRecord != null) {
+      cw.visitInnerClass(nestedRecord, internalName, "C",
+          Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL);
+    }
     if (shuffled) {
       describe(cw, description);
       accessors(cw, internalName);
